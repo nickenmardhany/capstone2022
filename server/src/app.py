@@ -63,7 +63,7 @@ class User(BaseModel):
 
 db=SessionLocal()
 
-Data: list[Dummy2] = []
+Data = [Dummy2]
 
 
 #: Describe all Pydantic Response classes
@@ -269,7 +269,7 @@ async def get_all_data():
 @app.get("/data/pengaduan", response_model=ListDummyResponse)
 async def get_data_pengaduan():
    data=db.query(models.Dummy2).filter(models.Dummy2.label=='pengaduan').all()
-   list = data.sort(key=None, reverse=False)
+   list = sorted(data)
    return {"status": "ok", "code": 200, "data": list}
 
 
@@ -344,4 +344,4 @@ def labelling(data_id: int, type: str):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=5003)
+    uvicorn.run(app, host="0.0.0.0", port=5001)
