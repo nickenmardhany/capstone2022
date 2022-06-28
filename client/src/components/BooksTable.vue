@@ -20,9 +20,9 @@
     <table class="table-fixed">
       <thead>
         <tr>
-          <th class="px-4 py-2">Title</th>
-          <th class="px-4 py-2">Author</th>
-          <th class="px-4 py-2">Read</th>
+          <th class="px-4 py-2">Username</th>
+          <th class="px-4 py-2">Pengaduan</th>
+          <th class="px-4 py-2">Kategori</th>
           <th></th>
         </tr>
       </thead>
