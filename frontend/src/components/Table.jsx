@@ -76,11 +76,19 @@ const Table = () => {
         setErrorMessage={setErrorMessage}
       />
       <button
+        className="button is-fullwidth mb-5 is-info"
+        onClick={() => setActiveModal(true)}
+      >
+        Tambahkan Akun Admin Baru
+      </button>
+      <button
         className="button is-fullwidth mb-5 is-primary"
         onClick={() => setActiveModal(true)}
       >
-        Create Data Aduan
+        Tambahkan Data Pengaduan Manual
       </button>
+      
+      
       <ErrorMessage message={errorMessage} />
       {loaded && listdata ? (
         <table className="table is-fullwidth is-striped is-hoverable is-narrow">
@@ -90,7 +98,7 @@ const Table = () => {
               <th>Nama Pelapor</th>
               <th>Label</th>
               <th>Kategori Pengaduan</th>
-              <th>Actions</th>
+              <th>Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -106,13 +114,13 @@ const Table = () => {
                     className="button mr-2 is-info is-light"
                     onClick={() => handleUpdate(data.id)}
                   >
-                    Update
+                    Kategorisasi
                   </button>
                   <button
                     className="button mr-2 is-danger is-light"
                     onClick={() => handleDelete(data.id)}
                   >
-                    Delete
+                    Hapus Data
                   </button>
                 </td>
               </tr>

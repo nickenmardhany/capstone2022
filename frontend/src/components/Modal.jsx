@@ -95,7 +95,7 @@ const Modal = ({ active, handleModal, token, id, setErrorMessage }) => {
       <div className="modal-card">
         <header className="modal-card-head has-background-primary-light">
           <h1 className="modal-card-title">
-            {id ? "Update Data" : "Create Data"}
+            {id ? "Kategorisasi Data" : "Tambahkan Data Manual"}
           </h1>
         </header>
         <section className="modal-card-body">

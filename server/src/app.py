@@ -63,7 +63,7 @@ class User(BaseModel):
 
 db=SessionLocal()
 
-Data: list[Dummy2] = []
+Data = [Dummy2]
 
 
 #: Describe all Pydantic Response classes
@@ -269,7 +269,8 @@ async def get_all_data():
 @app.get("/data/pengaduan", response_model=ListDummyResponse)
 async def get_data_pengaduan():
    data=db.query(models.Dummy2).filter(models.Dummy2.label=='pengaduan').all()
-   return {"status": "ok", "code": 200, "data": data}
+   list = sorted(data)
+   return {"status": "ok", "code": 200, "data": list}
 
 
 @app.post("/data", status_code=201, response_model=DummyResponse)

@@ -53,7 +53,7 @@ const Register = () => {
     return(
         <div className="column">
             <form action="" className="box" onSubmit={handleSubmit}>
-                <h1 className="title has-text-centered">Register</h1>
+                <h1 className="title has-text-centered">Tambahkan Admin Baru</h1>
                 <div className="field">
                     <label className="label">First Name</label>
                     <div className="control">
