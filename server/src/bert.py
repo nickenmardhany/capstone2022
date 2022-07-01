@@ -43,14 +43,7 @@ def clean1(isi):
 #TANDA BACA
   isi = isi.translate(str.maketrans("","",string.punctuation))
 ##stop(isi):
-  #factorystop = StopWordRemoverFactory()
-  #stop = factorystop.create_stop_word_remover()
-  #isi = stop.remove(isi)
   isi = re.sub('[^a-zA-Z0-9\n\.]', ' ', isi)
-##stem(isi):
-  #factorystem = StemmerFactory()
-  #stemmer = factorystem.create_stemmer()
-  #isi = stemmer.stem(isi)
 
   return isi
 
