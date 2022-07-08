@@ -217,7 +217,7 @@ async def get_stream():
                 tweets = tweeet.encode("utf-8")
                 new_tweet=models.Data(
                 
-                users = json_response['includes']['users'][0]['username'],
+                user = json_response['includes']['users'][0]['username'],
                 tweets=json_response['data']['text'],
                 mark='unprocessed',
                 label='unlabelled',
@@ -359,7 +359,7 @@ async def get_data_pengaduan():
 
 @app.post("/data", status_code=201, response_model=DummyResponse)
 def create_data_pengaduan(user: InsertData):
-    new_user=models.Data( tweets=user.tweets,users=user.users,mark=user.mark,label= user.label,category = user.category)
+    new_user=models.Data( tweets=user.tweets,user=user.user,mark=user.mark,label= user.label,category = user.category)
 
     db.add(new_user)
     db.commit()
