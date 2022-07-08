@@ -22,7 +22,7 @@ sns.set()
 
 
 #load model
-path = 'pipeline_bert.pkl'
+path = 'pipeline_bert_svm.pkl'
 clf1 = pickle.load(open(path, 'rb'))
 data1 = pd.read_csv("test.csv", encoding='latin1')
 data1.columns = ["Label", "Tweet"]

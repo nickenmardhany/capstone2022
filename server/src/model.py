@@ -21,7 +21,7 @@ clf1 = pickle.load(open(path, 'rb'))
 data1 = pd.read_csv("test.csv", encoding='latin1')
 data1.columns = ["Label", "Tweet"]
 
-class Dummy2(BaseModel):
+class Data(BaseModel):
     id: int
     tweets: str
     users: str
@@ -34,7 +34,7 @@ class Dummy2(BaseModel):
 
 db=SessionLocal()
 
-Data: list[Dummy2] = []
+Data: list[Data] = []
 
 #Preprocessing 
 
@@ -64,7 +64,7 @@ def clean1(isi):
 
 def predict_data():
 
-    data=db.query(models.Dummy2).all()
+    data=db.query(models.Data).all()
       
     for x in data:
         if x.mark == "unprocessed":
@@ -83,7 +83,7 @@ def predict_data():
 
 #method ade if output = 1, add to database pengaduan
 
-def process(data: Dummy2):
+def process(data: Data):
     
       data.tweets = [clean1(data.tweets)]
       result = clf1.predict(data.tweets)
@@ -95,7 +95,7 @@ def process(data: Dummy2):
       db.add(data)
       db.commit()
       
-      data2=db.query(models.Dummy2).all()
+      data2=db.query(models.Data).all()
       print(data2)
       return { 
           "status": "success",

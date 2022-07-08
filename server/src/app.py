@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List, Callable, Optional, Tuple, Union
 from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
@@ -17,6 +17,21 @@ import models
 import requests
 import models
 import json
+import re
+import string
+from unittest import result
+import numpy as np
+import dill
+import os
+import torch
+import transformers
+from transformers import BertModel, BertTokenizer, DistilBertModel, DistilBertTokenizer
+from transformers import AutoTokenizer, AutoModel
+from torch.utils.data import Dataset, DataLoader
+from torch import optim, nn
+from sklearn.base import BaseEstimator, TransformerMixin
+import seaborn as sns
+sns.set()
 
 app = FastAPI()
 
@@ -42,13 +57,13 @@ class Tweets(BaseModel):
     class Config:
             orm_mode=True
 
-class Dummy2(BaseModel):
+class Data(BaseModel):
     id: int
     tweets: str
-    users: str
+    user: str
     mark : str
     label: str
-    type: str
+    category: str
 
     class Config:
             orm_mode=True
@@ -58,12 +73,21 @@ class User(BaseModel):
     first_name: str
     last_name: str
     email: str
+    username: str
+    role: str
     class Config:
         orm_mode=True
 
+class InsertData(BaseModel):
+    tweets: str
+    user: str
+    mark : str
+    label: str
+    category: str
+
 db=SessionLocal()
 
-Data = [Dummy2]
+Data = List[Data]
 
 
 #: Describe all Pydantic Response classes
@@ -73,7 +97,7 @@ class ResponseBase(BaseModel):
     messages: List[str] = []
 
 class DummyResponse(ResponseBase):
-    data: Dummy2
+    data: Data
 
 class TweetsResponse(ResponseBase):
     data: Tweets
@@ -82,7 +106,7 @@ class ListTweetsResponse(ResponseBase):
     data: List[Tweets]
 
 class ListDummyResponse(ResponseBase):
-    data: List[Dummy2]
+    data: List[Data]
 
 #Load Model
 nltk.download('punkt')
@@ -191,13 +215,13 @@ async def get_stream():
             if  json_response != '':
                 tweeet = json_response['data']['text']
                 tweets = tweeet.encode("utf-8")
-                new_tweet=models.Dummy2(
+                new_tweet=models.Data(
                 
                 users = json_response['includes']['users'][0]['username'],
                 tweets=json_response['data']['text'],
                 mark='unprocessed',
-                label='bukan pengaduan',
-                type='belum ditentukan'
+                label='unlabelled',
+                category='uncategorized'
                 )
         
                 
@@ -210,13 +234,12 @@ async def get_stream():
 
 #MODEL
 
-#Preprocessing 
 
 def clean1(isi):
 ##URl
   isi = re.sub(r"htt\S{0,}", " ",isi)
 ##USER
-  isi = re.sub(r'@\S{0,}', ' USER ',isi)
+  isi = re.sub(r'@\S{0,}', ' ',isi)
   isi = re.sub(r"\s+", " ", isi)
 ##LOWER
   isi = isi.lower()
@@ -225,24 +248,73 @@ def clean1(isi):
 #TANDA BACA
   isi = isi.translate(str.maketrans("","",string.punctuation))
 ##stop(isi):
-  factorystop = StopWordRemoverFactory()
-  stop = factorystop.create_stop_word_remover()
-  isi = stop.remove(isi)
   isi = re.sub('[^a-zA-Z0-9\n\.]', ' ', isi)
-  factorystem = StemmerFactory()
-  stemmer = factorystem.create_stemmer()
-  isi = stemmer.stem(isi)
 
   return isi
+
+class BertTransformer(BaseEstimator, TransformerMixin):
+    def __init__(
+        self,
+        tokenizer,
+        model,
+        max_length: int = 60,
+        embedding_func: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
+    ):
+        self.tokenizer = tokenizer
+        self.model = model
+        self.model.eval()
+        self.max_length = max_length
+        self.embedding_func = embedding_func
+
+        if self.embedding_func is None:
+            self.embedding_func = lambda x: x[0][:, 0, :].squeeze()
+
+        # TODO:: PADDING
+
+    def _tokenize(self, text: str) -> Tuple[torch.Tensor, torch.Tensor]:
+        # Tokenize the text with the provided tokenizer
+        tokenized_text = self.tokenizer.encode_plus(
+            text, add_special_tokens=True, max_length=self.max_length, truncation=True
+        )["input_ids"]
+
+        # padding
+        padded_text = tokenized_text + [0]*(self.max_length-len(tokenized_text))
+        # Create an attention mask telling BERT to use all words
+        attention_mask = np.where(np.array(padded_text) != 0, 1, 0)
+
+        # bert takes in a batch so we need to unsqueeze the rows
+        return (
+            torch.tensor(padded_text).unsqueeze(0),
+            torch.tensor(attention_mask).unsqueeze(0),
+        )
+
+    def _tokenize_and_predict(self, text: str) -> torch.Tensor:
+        tokenized, attention_mask = self._tokenize(text)
+
+        embeddings = self.model(tokenized, attention_mask)
+        return self.embedding_func(embeddings)
+
+    def transform(self, text: List[str]):
+        if isinstance(text, pd.Series):
+            text = text.tolist()
+
+        with torch.no_grad():
+            return torch.stack([self._tokenize_and_predict(string) for string in text])
+        
+Vector = BertTransformer(BertTokenizer.from_pretrained("indobenchmark/indobert-base-p1"),
+                      BertModel.from_pretrained("indobenchmark/indobert-base-p2"),
+                      embedding_func=lambda x: x[0][:, 0, :].squeeze())
+
 
 
 
 #method ade if output = 1, add to database pengaduan
 
-def process(data: Dummy2):
-    
-      data.tweets = [clean1(data.tweets)]
-      result = clf1.predict(data.tweets)
+def process(data: Data):
+
+      clean_data = [clean1(data.tweets)]
+    #   vectorized_data = Vector.transform(clean_data)
+      result = clf1.predict(clean_data)
       if result == 1:
         data.label = "pengaduan"
       else:
@@ -251,7 +323,7 @@ def process(data: Dummy2):
       db.add(data)
       db.commit()
       
-      data2=db.query(models.Dummy2).all()
+      data2=db.query(models.Data).all()
       print(data2)
       return { 
           "status": "success",
@@ -262,20 +334,32 @@ def process(data: Dummy2):
 
 @app.get("/data", response_model=ListDummyResponse)
 async def get_all_data():
-   tweet=db.query(models.Dummy2).all()
+   tweet=db.query(models.Data).all()
+   for x in tweet:
+            if x.mark == "unprocessed":
+                #panggil method ade (inputan data berupa single data, terdiri dari semua column)
+                process(x)
+
+                #labeling as processed
+                x.mark = "processed"
+                db.add(x)
+                db.commit()
+                
+                print(x)
+  
    return {"status": "ok", "code": 200, "data": tweet}
 
 
 @app.get("/data/pengaduan", response_model=ListDummyResponse)
 async def get_data_pengaduan():
-   data=db.query(models.Dummy2).filter(models.Dummy2.label=='pengaduan').all()
+   data=db.query(models.Data).filter(models.Data.label=='pengaduan').all()
    list = sorted(data)
    return {"status": "ok", "code": 200, "data": list}
 
 
 @app.post("/data", status_code=201, response_model=DummyResponse)
-def create_data_pengaduan(user: Dummy2):
-    new_user=models.Dummy2( id = user.id, tweets=user.tweets,users=user.users,mark=user.mark,label= user.label,type = user.type)
+def create_data_pengaduan(user: InsertData):
+    new_user=models.Data( tweets=user.tweets,users=user.users,mark=user.mark,label= user.label,category = user.category)
 
     db.add(new_user)
     db.commit()
@@ -286,9 +370,9 @@ def create_data_pengaduan(user: Dummy2):
         "data": new_user,
     }
 
-@app.get("/predict_data", response_model=ListDummyResponse)
+@app.get("/predict_data")
 async def predict_laporan():
-    data=db.query(models.Dummy2).all()
+    data=db.query(models.Data).all()
       
     for x in data:
             if x.mark == "unprocessed":
@@ -302,12 +386,12 @@ async def predict_laporan():
                 
                 print(x)
 
-    return {"status": "ok", "code": 200, "data": Data}
+    return {"status": "ok", "code": 200}
 
 
 @app.get("/data/{data_id}", response_model=DummyResponse)
 async def get_data_by_id(data_id:int):
-   data=db.query(models.Dummy2).filter(models.Dummy2.id==data_id).first()
+   data=db.query(models.Data).filter(models.Data.id==data_id).first()
 
    if data is None:
       raise HTTPException(status_code=400, detail="data not found")
@@ -317,7 +401,7 @@ async def get_data_by_id(data_id:int):
 
 @app.delete("/data/{data_id}", response_model=DummyResponse)
 async def delete_data(data_id:int):
-   data_to_delete=db.query(models.Dummy2).filter(models.Dummy2.id==data_id).first()
+   data_to_delete=db.query(models.Data).filter(models.Data.id==data_id).first()
 
    if data_to_delete is None:
       raise HTTPException(status_code=400, detail="tweet not found")
@@ -327,9 +411,9 @@ async def delete_data(data_id:int):
    return {"status": "ok", "code": 200, "data":data_to_delete}
 
 @app.put("/data/{data_id}", response_model=DummyResponse)
-def labelling(data_id: int, type: str):
-    tweet_to_update=db.query(models.Dummy2).filter(models.Dummy2.id==data_id).first()
-    tweet_to_update.type = type
+def labelling(data_id: int, category: str):
+    tweet_to_update=db.query(models.Data).filter(models.Data.id==data_id).first()
+    tweet_to_update.category = category
     
     
     db.commit()

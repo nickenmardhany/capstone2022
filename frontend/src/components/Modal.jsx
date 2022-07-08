@@ -23,8 +23,8 @@ const Modal = ({ active, handleModal, token, id, setErrorMessage }) => {
         const data = await response.json();
         console.log(data)
         setPengaduan(data.data.tweets);
-        setPelapor(data.data.users);
-        setKategori(data.data.type);
+        setPelapor(data.data.user);
+        setKategori(data.data.category);
       }
     };
 
@@ -48,10 +48,10 @@ const Modal = ({ active, handleModal, token, id, setErrorMessage }) => {
         // Authorization: "Bearer " + token,
       },
       body: JSON.stringify({
-    
+       
         tweets: pengaduan,
         users: pelapor,
-        type: kategori,
+        category : kategori,
         mark: 'unprocessed',
         label: 'unlabelled'
       }),
@@ -75,7 +75,7 @@ const Modal = ({ active, handleModal, token, id, setErrorMessage }) => {
         // Authorization: "Bearer " + token,
       },
       body: JSON.stringify({
-        type: kategori
+        category: kategori
       }),
     };
     const response = await fetch(`/data/${id}?type=${encodeURIComponent(kategori)}`, requestOptions);

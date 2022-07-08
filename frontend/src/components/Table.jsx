@@ -5,6 +5,7 @@ import Modal from "./Modal";
 import ErrorMessage from "./ErrorMessage";
 
 import { UserContext } from "../context/UserContext";
+import Register from "./Register";
 
 const Table = () => {
   const [token] = useContext(UserContext);
@@ -36,6 +37,8 @@ const Table = () => {
     getData();
   };
 
+ 
+  
   const getData = async () => {
     
     const requestOptions = {
@@ -75,12 +78,12 @@ const Table = () => {
         id={id}
         setErrorMessage={setErrorMessage}
       />
-      <button
+      {/* <button
         className="button is-fullwidth mb-5 is-info"
-        onClick={() => setActiveModal(true)}
+        onClick={() => <Register/>}
       >
         Tambahkan Akun Admin Baru
-      </button>
+      </button> */}
       <button
         className="button is-fullwidth mb-5 is-primary"
         onClick={() => setActiveModal(true)}
@@ -105,9 +108,9 @@ const Table = () => {
             {listdata.map((data) => (
               <tr key={data.id}>
                 <td>{data.tweets}</td>
-                <td>{data.users}</td>
+                <td>{data.user}</td>
                 <td>{data.label}</td>
-                <td>{data.type}</td>
+                <td>{data.category}</td>
                 
                 <td>
                   <button
