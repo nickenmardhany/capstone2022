@@ -50,7 +50,7 @@ const Modal = ({ active, handleModal, token, id, setErrorMessage }) => {
       body: JSON.stringify({
        
         tweets: pengaduan,
-        users: pelapor,
+        user: pelapor,
         category : kategori,
         mark: 'unprocessed',
         label: 'unlabelled'
