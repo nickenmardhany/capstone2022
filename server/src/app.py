@@ -1,53 +1,91 @@
-from typing import List
-
-from fastapi import FastAPI, HTTPException
+from typing import Any, Dict, List, Callable, Optional, Tuple, Union
+from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
+from auth import AuthHandler
+from schemas import AuthDetails, Login
+from database import SessionLocal
+from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
+from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
+from pydantic import BaseModel
+import re
+import string
+import nltk
+import pickle
+import pandas as pd
+import models
+import requests
+import models
+import json
+import re
+import string
+from unittest import result
+import numpy as np
+import dill
+import os
+import torch
+import transformers
+from transformers import BertModel, BertTokenizer, DistilBertModel, DistilBertTokenizer
+from transformers import AutoTokenizer, AutoModel
+from torch.utils.data import Dataset, DataLoader
+from torch import optim, nn
+from sklearn.base import BaseEstimator, TransformerMixin
+import seaborn as sns
+sns.set()
 
 app = FastAPI()
 
-#: Configure CORS
-origins = [
-    "http://localhost:8080",
-]
+# #: Configure CORS
+# origins = [
+#     "http://localhost:5001",
+# ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-#: Initialize list of books
-class Book(BaseModel):
-    title: str
-    author: str
-    read: bool
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=origins,
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 
 
-BOOKS: List[Book] = []
+#: Initialize model
 
+class Tweets(BaseModel):
+    id: int
+    tweets: str
+    class Config:
+            orm_mode=True
 
-@app.on_event("startup")
-async def startup_event():
-    BOOKS.clear()
-    BOOKS.append(Book(title="On the Road", author="Jack Kerouac", read=True))
-    BOOKS.append(
-        Book(
-            title="Harry Potter and the Philosopher's Stone",
-            author="J. K. Rowling",
-            read=False,
-        )
-    )
-    BOOKS.append(Book(title="Green Eggs and Ham", author="Dr. Seuss", read=True))
+class Data(BaseModel):
+    id: int
+    tweets: str
+    user: str
+    mark : str
+    label: str
+    category: str
 
+    class Config:
+            orm_mode=True
 
-def _assert_book_id_exists(book_id: int):
-    if book_id < 0 or book_id > len(BOOKS):
-        raise HTTPException(status_code=404, detail="Book not found")
+class User(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
+    email: str
+    username: str
+    role: str
+    class Config:
+        orm_mode=True
 
+class InsertData(BaseModel):
+    tweets: str
+    user: str
+    mark : str
+    label: str
+    category: str
+
+db=SessionLocal()
 
 #: Describe all Pydantic Response classes
 class ResponseBase(BaseModel):
@@ -55,21 +93,27 @@ class ResponseBase(BaseModel):
     code: int
     messages: List[str] = []
 
+class DataResponse(ResponseBase):
+    data: Data
 
-class PongResponse(ResponseBase):
-    data: str = "Pong!"
+class UserResponse(ResponseBase):
+    data: User
+
+class ListUserResponse(ResponseBase):
+    data: List[User]
+
+class ListDataResponse(ResponseBase):
+    data: List[Data]
+
+#Load Model
+nltk.download('punkt')
+
+path = 'pipeline.pkl'
+clf1 = pickle.load(open(path, 'rb'))
 
 
-class BookResponse(ResponseBase):
-    data: Book
-
-
-class ListBooksResponse(ResponseBase):
-    data: List[Book]
-
-
-#: Mount routes
-@app.get("/")
+#: Test CRUD
+@app.get("/api")
 def index():
     return {
         "status": "ok",
@@ -77,54 +121,342 @@ def index():
         "data": "Welcome, please check /docs or /redoc",
     }
 
+#Authentication
 
-@app.get("/ping", response_model=PongResponse)
-def return_pong():
-    return {"status": "ok", "code": 200}
+auth_handler = AuthHandler()
+# users = []
+
+@app.post('/register', status_code=201,response_model=UserResponse )
+def register(auth_details: AuthDetails):
+    users = db.query(models.User).order_by('id')
+
+    for x in users:
+        if x.username == auth_details.username:
+            raise HTTPException(status_code=400, detail='Username is already taken')
+
+        if x.email == auth_details.email:
+            raise HTTPException(status_code=400, detail='Email is already taken')
+    
+        
+    hashed_password = auth_handler.get_password_hash(auth_details.password)
+    new_user=models.User(
+        username=auth_details.username,
+        email = auth_details.email,
+        first_name=auth_details.first_name,
+        last_name = auth_details.last_name,
+        password= hashed_password ,
+        role = 'admin'
+    )
+    db.add(new_user)
+    db.commit()
+    return {
+        "status": "success",
+        "code": 200,
+        "messages": ["User has been registered !"],
+        "data": new_user
+    }
 
 
-@app.get("/books", response_model=ListBooksResponse)
-def get_all_books():
-    return {"status": "ok", "code": 200, "data": BOOKS}
+@app.post('/login')
+def login(auth_details: Login):
+    user = None
+    users = db.query(models.User).order_by('id')
+
+    for x in users:
+        if x.email == auth_details.email:
+            user = x
+            break
+   
+    
+    if (user is None) or (not auth_handler.verify_password(auth_details.password, user.password)):
+        raise HTTPException(status_code=401, detail='Invalid username and/or password')
+    token = auth_handler.encode_token(user.email)
+    return { 
+        "status": "success",
+        "code": 200,
+        "messages": ["Login successfully!"],
+        "token": token,
+        "data": user,
+         }
 
 
-@app.post("/books", status_code=201, response_model=BookResponse)
-def create_book(book: Book):
-    BOOKS.append(book)
+@app.get('/unprotected')
+def unprotected():
+    return { 'hello': 'world' }
+
+
+@app.get('/users/me')
+def protected(username=Depends(auth_handler.auth_wrapper)):
+    return { 'name': username }
+
+#: Twitter Streaming 
+
+def bearer_oauth(r):
+    """
+    Method required by bearer token authentication.
+    """
+
+    r.headers["Authorization"] = f"Bearer AAAAAAAAAAAAAAAAAAAAALRQVwEAAAAAMnmA%2BU3ltzAl6vyoYBNLH06SUUQ%3DiCkOdnS92bQnu8qAEADDMR8f0pBJhXcorJXgxBzYeby9BLRuEw"
+    r.headers["User-Agent"] = "v2FilteredStreamPython"
+    return r
+
+
+@app.get("/rules")
+async def get_rules_stream():
+    response = requests.get(
+        "https://api.twitter.com/2/tweets/search/stream/rules", auth=bearer_oauth
+    )
+    return response.json()
+
+@app.post("/rules")
+def set_rules():
+    rules = [
+        {"value": "aduan jogja"},
+        {"value": "lampu jalan mati"},
+        {"value": "jalan rusak"},
+        {"value": "sampah menumpuk"},
+        {"value": "@PemkotJogja"},
+    ]
+    payload = {"add": rules}
+    response = requests.post(
+        "https://api.twitter.com/2/tweets/search/stream/rules",
+        auth=bearer_oauth,
+        json=payload,
+    )
+    
+    return response.json()
+
+@app.get("/stream")
+async def get_stream():
+    response = requests.get(
+        "https://api.twitter.com/2/tweets/search/stream?expansions=author_id", auth=bearer_oauth, stream=True,
+    )
+    for response_line in response.iter_lines():
+        if response_line:
+            json_response = json.loads(response_line)
+            if  json_response != '':
+                tweeet = json_response['data']['text']
+                tweets = tweeet.encode("utf-8")
+                new_tweet=models.Data(
+                
+                user = json_response['includes']['users'][0]['username'],
+                tweets=json_response['data']['text'],
+                mark='unprocessed',
+                label='unlabelled',
+                category='uncategorized'
+                )
+        
+                
+                db.add(new_tweet)
+                db.commit()
+            # print(json.dumps(tweets.decode("utf-8"), indent=4, sort_keys=True))
+            print(json.dumps(json_response, indent=4, sort_keys=True))
+
+    return {"status": "ok", "code": 200, "data": tweets.decode("utf-8")} 
+
+#MODEL
+
+
+def clean1(isi):
+##URl
+  isi = re.sub(r"htt\S{0,}", " ",isi)
+##USER
+  isi = re.sub(r'@\S{0,}', ' ',isi)
+  isi = re.sub(r"\s+", " ", isi)
+##LOWER
+  isi = isi.lower()
+##ANGKA
+  isi = re.sub(r"\d+", "", isi)
+#TANDA BACA
+  isi = isi.translate(str.maketrans("","",string.punctuation))
+##stop(isi):
+  isi = re.sub('[^a-zA-Z0-9\n\.]', ' ', isi)
+
+  return isi
+
+class BertTransformer(BaseEstimator, TransformerMixin):
+    def __init__(
+        self,
+        tokenizer,
+        model,
+        max_length: int = 60,
+        embedding_func: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
+    ):
+        self.tokenizer = tokenizer
+        self.model = model
+        self.model.eval()
+        self.max_length = max_length
+        self.embedding_func = embedding_func
+
+        if self.embedding_func is None:
+            self.embedding_func = lambda x: x[0][:, 0, :].squeeze()
+
+        # TODO:: PADDING
+
+    def _tokenize(self, text: str) -> Tuple[torch.Tensor, torch.Tensor]:
+        # Tokenize the text with the provided tokenizer
+        tokenized_text = self.tokenizer.encode_plus(
+            text, add_special_tokens=True, max_length=self.max_length, truncation=True
+        )["input_ids"]
+
+        # padding
+        padded_text = tokenized_text + [0]*(self.max_length-len(tokenized_text))
+        # Create an attention mask telling BERT to use all words
+        attention_mask = np.where(np.array(padded_text) != 0, 1, 0)
+
+        # bert takes in a batch so we need to unsqueeze the rows
+        return (
+            torch.tensor(padded_text).unsqueeze(0),
+            torch.tensor(attention_mask).unsqueeze(0),
+        )
+
+    def _tokenize_and_predict(self, text: str) -> torch.Tensor:
+        tokenized, attention_mask = self._tokenize(text)
+
+        embeddings = self.model(tokenized, attention_mask)
+        return self.embedding_func(embeddings)
+
+    def transform(self, text: List[str]):
+        if isinstance(text, pd.Series):
+            text = text.tolist()
+
+        with torch.no_grad():
+            return torch.stack([self._tokenize_and_predict(string) for string in text])
+        
+Vector = BertTransformer(BertTokenizer.from_pretrained("indobenchmark/indobert-base-p1"),
+                      BertModel.from_pretrained("indobenchmark/indobert-base-p2"),
+                      embedding_func=lambda x: x[0][:, 0, :].squeeze())
+
+
+
+
+#method ade if output = 1, add to database pengaduan
+
+def process(data: Data):
+
+      clean_data = [clean1(data.tweets)]
+    #   vectorized_data = Vector.transform(clean_data)
+      result = clf1.predict(clean_data)
+      if result == 1:
+        data.label = "pengaduan"
+      else:
+        data.label = "bukan pengaduan"
+        data.category = "-"
+
+      db.add(data)
+      db.commit()
+      
+      data2=db.query(models.Data).all()
+      print(data2)
+      return { 
+          "status": "success",
+          "code": 200,
+          "messages": ["Data processed!"],
+          "data": data2
+          }
+
+@app.get("/data",response_model=ListDataResponse)
+async def get_all_data():
+    
+    sort=db.query(models.Data).order_by('id').all()
+    for x in sort:
+            if x.mark == "unprocessed":
+                #process data to model ML
+                process(x)
+
+                #labeling as processed
+                x.mark = "processed"
+                db.add(x)
+                db.commit()
+                
+   
+   
+  
+    return {"status": "ok", "code": 200, "data": sort}
+
+
+@app.get("/data/pengaduan", response_model=ListDataResponse)
+async def get_data_pengaduan():
+   data=db.query(models.Data).order_by('id').filter(models.Data.label=='pengaduan').all()
+   return {"status": "ok", "code": 200, "data": data}
+
+
+@app.post("/data", status_code=201, response_model=DataResponse)
+def create_data_pengaduan(user: InsertData):
+    new_data=models.Data( 
+        tweets=user.tweets,
+        user=user.user,
+        mark=user.mark,
+        label= user.label,
+        category = user.category)
+
+    db.add(new_data)
+    db.commit()
     return {
         "status": "success",
         "code": 201,
-        "messages": ["Book added !"],
-        "data": book,
+        "messages": ["Data added !"],
+        "data" : new_data
+        
     }
 
+@app.get("/predict_data")
+async def predict_laporan():
+    data=db.query(models.Data).all()
+      
+    for x in data:
+            if x.mark == "unprocessed":
+                #process data to model ML
+                process(x)
 
-@app.put("/books/{book_id}", response_model=BookResponse)
-def edit_book(book_id: int, book: Book):
-    _assert_book_id_exists(book_id)
-    BOOKS[book_id] = book
+                #labeling as processed
+                x.mark = "processed"
+                db.add(x)
+                db.commit()
+                
+                print(x)
+
+    return {"status": "ok", "code": 200, "messages": [ "Data has been predicted !"]
+}
+
+
+@app.get("/data/{data_id}", response_model=DataResponse)
+async def get_data_by_id(data_id:int, auth=Depends(auth_handler.auth_wrapper)):
+   data=db.query(models.Data).filter(models.Data.id==data_id).first()
+
+   if data is None:
+      raise HTTPException(status_code=400, detail="data not found")
+
+   return {"status": "ok", "code": 200, "data": data}
+
+
+@app.delete("/data/{data_id}", response_model=DataResponse)
+async def delete_data(data_id:int):
+   data_to_delete=db.query(models.Data).filter(models.Data.id==data_id).first()
+
+   if data_to_delete is None:
+      raise HTTPException(status_code=400, detail="tweet not found")
+
+   db.delete(data_to_delete)
+   db.commit()
+   return {"status": "ok", "code": 200, "messages": ["Data deleted !"],"data":data_to_delete}
+
+@app.put("/data/{data_id}", response_model=DataResponse)
+def labelling(data_id: int, category: str):
+    tweet_to_update=db.query(models.Data).order_by('id').filter(models.Data.id==data_id).first()
+    tweet_to_update.category = category
+    
+    
+    db.commit()
     return {
         "status": "success",
         "code": 200,
-        "messages": ["Book edited !"],
-        "data": book,
+        "messages": ["Data updated !"],
+        "data": tweet_to_update,
     }
-
-
-@app.delete("/books/{book_id}", response_model=BookResponse)
-def remove_book(book_id: int):
-    _assert_book_id_exists(book_id)
-    removed_book = BOOKS.pop(book_id)
-    return {
-        "status": "success",
-        "code": 200,
-        "messages": ["Book removed !"],
-        "data": removed_book,
-    }
-
 
 #: Start application
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=5001)
