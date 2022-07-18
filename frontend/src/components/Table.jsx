@@ -5,6 +5,7 @@ import ErrorMessage from "./ErrorMessage";
 
 import { UserContext } from "../context/UserContext";
 
+
 const Table = () => {
   const [token] = useContext(UserContext);
   const [listdata, setListData] = useState(null);
@@ -25,12 +26,12 @@ const Table = () => {
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer " + token,
+
       },
     };
     const response = await fetch(`/data/${id}`, requestOptions);
     if (!response.ok) {
       setErrorMessage("Failed to delete lead");
-      console.log(token)
     }
 
     getData();
@@ -45,6 +46,7 @@ const Table = () => {
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer " + token,
+
       },
     };
     const response = await fetch("/data", requestOptions);

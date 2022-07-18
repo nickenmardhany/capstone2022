@@ -73,12 +73,14 @@ const Modal = ({ active, handleModal, token, id, setErrorMessage }) => {
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer " + token,
+
       },
       body: JSON.stringify({
         category: kategori
       }),
     };
     const response = await fetch(`/data/${id}?category=${encodeURIComponent(kategori)}`, requestOptions);
+
     console.log(requestOptions)
     if (!response.ok) {
       setErrorMessage("Something went wrong when updating data");
@@ -138,12 +140,14 @@ const Modal = ({ active, handleModal, token, id, setErrorMessage }) => {
                 </select>
               </div>
                  {/* <input
+
                   type="text"
                   placeholder="Masukkan Kategori Pengaduan"
                   value={kategori}
                   onChange={(e) => setKategori(e.target.value)}
                   className="input"
                 /> */}
+
               </div>
             </div>
           </form>

@@ -2,6 +2,10 @@ import React, { useContext } from "react";
 import { useEffect } from "react";
 import { useState } from "react";
 
+<<<<<<< HEAD
+=======
+import Register from "./components/Register";
+>>>>>>> 482a4486518c492a6ceee9a0393c1c8c1311093c
 import Login from "./components/Login";
 import Header from "./components/Header";
 import { UserContext } from "./context/UserContext";

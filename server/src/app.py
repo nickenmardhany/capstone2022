@@ -124,7 +124,6 @@ def index():
 #Authentication
 
 auth_handler = AuthHandler()
-# users = []
 
 @app.post('/register', status_code=201,response_model=UserResponse )
 def register(auth_details: AuthDetails):
@@ -149,11 +148,13 @@ def register(auth_details: AuthDetails):
     )
     db.add(new_user)
     db.commit()
+
     return {
         "status": "success",
         "code": 200,
         "messages": ["User has been registered !"],
         "data": new_user
+
     }
 
 
@@ -179,7 +180,6 @@ def login(auth_details: Login):
         "data": user,
          }
 
-
 @app.get('/unprotected')
 def unprotected():
     return { 'hello': 'world' }
@@ -199,6 +199,10 @@ def bearer_oauth(r):
     r.headers["Authorization"] = f"Bearer AAAAAAAAAAAAAAAAAAAAALRQVwEAAAAAMnmA%2BU3ltzAl6vyoYBNLH06SUUQ%3DiCkOdnS92bQnu8qAEADDMR8f0pBJhXcorJXgxBzYeby9BLRuEw"
     r.headers["User-Agent"] = "v2FilteredStreamPython"
     return r
+
+@app.get('/unprotected')
+def unprotected():
+    return { 'hello': 'world' }
 
 
 @app.get("/rules")
@@ -355,6 +359,7 @@ def process(data: Data):
           "data": data2
           }
 
+
 @app.get("/data",response_model=ListDataResponse)
 async def get_all_data():
     
@@ -369,8 +374,6 @@ async def get_all_data():
                 db.add(x)
                 db.commit()
                 
-   
-   
   
     return {"status": "ok", "code": 200, "data": sort}
 
@@ -397,7 +400,6 @@ def create_data_pengaduan(user: InsertData):
         "code": 201,
         "messages": ["Data added !"],
         "data" : new_data
-        
     }
 
 @app.get("/predict_data")
@@ -428,6 +430,7 @@ async def get_data_by_id(data_id:int, auth=Depends(auth_handler.auth_wrapper)):
       raise HTTPException(status_code=400, detail="data not found")
 
    return {"status": "ok", "code": 200, "data": data}
+
 
 
 @app.delete("/data/{data_id}", response_model=DataResponse)
