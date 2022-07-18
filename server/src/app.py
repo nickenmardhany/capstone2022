@@ -108,7 +108,7 @@ class ListDataResponse(ResponseBase):
 #Load Model
 nltk.download('punkt')
 
-path = 'pipeline.pkl'
+path = 'pipeline_tfidf_svm.pkl'
 clf1 = pickle.load(open(path, 'rb'))
 
 
