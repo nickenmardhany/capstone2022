@@ -69,12 +69,12 @@ async def get_stream():
         if response_line:
             json_response = json.loads(response_line)
             if  json_response != '':
-                tweeet = json_response['data']['text']
+                tweeet = json_response.data.text
                 tweets = tweeet.encode("utf-8")
                 
                 new_tweet=models.Data(
-                user = json_response['includes']['users'][0]['username'],
-                tweets=json_response['data']['text'],
+                user = json_response.includes.users[0].username,
+                tweets=json_response.data.text,
                 mark='unprocessed',
                 label='unlabelled',
                 category='uncategorized'
