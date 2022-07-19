@@ -40,7 +40,6 @@ class Data(BaseModel):
 
 db=SessionLocal()
 
-Data: list[Data] = []
 
 #: Twitter Streaming 
 
