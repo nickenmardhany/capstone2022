@@ -328,7 +328,7 @@ class BertTransformer(BaseEstimator, TransformerMixin):
             return torch.stack([self._tokenize_and_predict(string) for string in text])
         
 Vector = BertTransformer(BertTokenizer.from_pretrained("indobenchmark/indobert-base-p1"),
-                      BertModel.from_pretrained("indobenchmark/indobert-base-p2"),
+                      BertModel.from_pretrained("indobenchmark/indobert-base-p1"),
                       embedding_func=lambda x: x[0][:, 0, :].squeeze())
 
 
